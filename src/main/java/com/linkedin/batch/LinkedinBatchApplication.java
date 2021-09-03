@@ -5,6 +5,7 @@ import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -26,6 +27,19 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
+    public JobExecutionDecider decider() {
+        return new DeliveryDecider();
+    }
+
+    @Bean
+    public Step leaveAtDoorStep() {
+        return this.stepBuilderFactory.get("leaveAtDoorStep").tasklet((stepContribution, chunkContext) -> {
+            System.out.println("Leaving the package at the door.");
+            return RepeatStatus.FINISHED;
+        }).build();
+    }
+
+    @Bean
     public Step storePackageStep() {
         return this.stepBuilderFactory.get("storePackageStep").tasklet((stepContribution, chunkContext) -> {
             System.out.println("Storing the package while the customer address is located");
@@ -36,7 +50,7 @@ public class LinkedinBatchApplication {
 
     @Bean
     public Step givePackageToCustomerStep() {
-        return this.stepBuilderFactory.get("givePackageToCustomer").tasklet((stepContribution, chunkContext) -> {
+        return this.stepBuilderFactory.get("givePackageToCustomerStep").tasklet((stepContribution, chunkContext) -> {
             System.out.println("Given the package to the customer");
             return RepeatStatus.FINISHED;
         }).build();
@@ -47,7 +61,7 @@ public class LinkedinBatchApplication {
     public Step driveToAddressStep() {
         boolean isLost = false;
         return this.stepBuilderFactory.get("driveToAddressStep").tasklet((stepContribution, chunkContext) -> {
-            if(isLost) throw new RuntimeException("Got lost driving to the address");
+            if (isLost) throw new RuntimeException("Got lost driving to the address");
             System.out.println("Successfully arrived at the address.");
             return RepeatStatus.FINISHED;
         }).build();
@@ -68,8 +82,12 @@ public class LinkedinBatchApplication {
         return this.jobBuilderFactory.get("deliverPackageJob")
                 .start(packageItemStep())
                 .next(driveToAddressStep())
-                .on("FAILED").to(storePackageStep())
-                .from(driveToAddressStep()).on("*").to(givePackageToCustomerStep())
+                    .on("FAILED").to(storePackageStep())
+                .from(driveToAddressStep())
+                    .on("*").to(decider())
+                        .on("PRESENT").to(givePackageToCustomerStep())
+                    .from(decider())
+                        .on("NOT_PRESENT").to(leaveAtDoorStep())
                 .end()
                 .build();
     }
