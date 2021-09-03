@@ -26,6 +26,15 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
+    public Step storePackageStep() {
+        return this.stepBuilderFactory.get("storePackageStep").tasklet((stepContribution, chunkContext) -> {
+            System.out.println("Storing the package while the customer address is located");
+            return RepeatStatus.FINISHED;
+        }).build();
+    }
+
+
+    @Bean
     public Step givePackageToCustomerStep() {
         return this.stepBuilderFactory.get("givePackageToCustomer").tasklet((stepContribution, chunkContext) -> {
             System.out.println("Given the package to the customer");
@@ -36,7 +45,9 @@ public class LinkedinBatchApplication {
 
     @Bean
     public Step driveToAddressStep() {
+        boolean isLost = false;
         return this.stepBuilderFactory.get("driveToAddressStep").tasklet((stepContribution, chunkContext) -> {
+            if(isLost) throw new RuntimeException("Got lost driving to the address");
             System.out.println("Successfully arrived at the address.");
             return RepeatStatus.FINISHED;
         }).build();
@@ -57,7 +68,9 @@ public class LinkedinBatchApplication {
         return this.jobBuilderFactory.get("deliverPackageJob")
                 .start(packageItemStep())
                 .next(driveToAddressStep())
-                .next(givePackageToCustomerStep())
+                .on("FAILED").to(storePackageStep())
+                .from(driveToAddressStep()).on("*").to(givePackageToCustomerStep())
+                .end()
                 .build();
     }
 
