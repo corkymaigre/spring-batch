@@ -27,8 +27,29 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
-    public JobExecutionDecider decider() {
+    public JobExecutionDecider deliveryDecider() {
         return new DeliveryDecider();
+    }
+
+    @Bean
+    public JobExecutionDecider receiptDecider() {
+        return new ReceiptDecider();
+    }
+
+    @Bean
+    public Step thankCustomerStep() {
+        return this.stepBuilderFactory.get("thankCustomerStep").tasklet((stepContribution, chunkContext) -> {
+            System.out.println("Thanking the customer.");
+            return RepeatStatus.FINISHED;
+        }).build();
+    }
+
+    @Bean
+    public Step refundStep() {
+        return this.stepBuilderFactory.get("refundStep").tasklet((stepContribution, chunkContext) -> {
+            System.out.println("Refunding customer money.");
+            return RepeatStatus.FINISHED;
+        }).build();
     }
 
     @Bean
@@ -82,12 +103,14 @@ public class LinkedinBatchApplication {
         return this.jobBuilderFactory.get("deliverPackageJob")
                 .start(packageItemStep())
                 .next(driveToAddressStep())
-                    .on("FAILED").to(storePackageStep())
+                .on("FAILED").to(storePackageStep())
                 .from(driveToAddressStep())
-                    .on("*").to(decider())
-                        .on("PRESENT").to(givePackageToCustomerStep())
-                    .from(decider())
-                        .on("NOT_PRESENT").to(leaveAtDoorStep())
+                .on("*").to(deliveryDecider())
+                .on("PRESENT").to(givePackageToCustomerStep())
+                .next(receiptDecider()).on("CORRECT").to(thankCustomerStep())
+                .from(receiptDecider()).on("INCORRECT").to(receiptDecider())
+                .from(deliveryDecider())
+                .on("NOT_PRESENT").to(leaveAtDoorStep())
                 .end()
                 .build();
     }
