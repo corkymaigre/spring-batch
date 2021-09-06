@@ -41,6 +41,24 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
+    public Step nestedBillingJobStep() {
+        return this.stepBuilderFactory.get("nestedBillingJobStep").job(billingJob()).build();
+    }
+
+    @Bean
+    public Step sendInvoiceStep() {
+        return this.stepBuilderFactory.get("sendInvoiceStep").tasklet((stepContribution, chunkContext) -> {
+            System.out.println("Invoice is sent to the customer");
+            return RepeatStatus.FINISHED;
+        }).build();
+    }
+
+    @Bean
+    public Job billingJob() {
+        return this.jobBuilderFactory.get("billingJob").start(sendInvoiceStep()).build();
+    }
+
+    @Bean
     public Flow deliveryFlow() {
         return new FlowBuilder<SimpleFlow>("deliveryFlow").start(driveToAddressStep())
                 .on("FAILED").fail()
@@ -160,6 +178,7 @@ public class LinkedinBatchApplication {
         return this.jobBuilderFactory.get("deliverPackageJob")
                 .start(packageItemStep())
                 .on("*").to(deliveryFlow())
+                .next(nestedBillingJobStep())
                 .end()
                 .build();
     }
