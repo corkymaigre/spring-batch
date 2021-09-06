@@ -6,7 +6,10 @@ import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.builder.FlowBuilder;
+import org.springframework.batch.core.job.flow.Flow;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
+import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -35,6 +38,19 @@ public class LinkedinBatchApplication {
     @Bean
     public JobExecutionDecider receiptDecider() {
         return new ReceiptDecider();
+    }
+
+    @Bean
+    public Flow deliveryFlow() {
+        return new FlowBuilder<SimpleFlow>("deliveryFlow").start(driveToAddressStep())
+                .on("FAILED").fail()
+                .from(driveToAddressStep())
+                .on("*").to(deliveryDecider())
+                .on("PRESENT").to(givePackageToCustomerStep())
+                .next(receiptDecider()).on("CORRECT").to(thankCustomerStep())
+                .from(receiptDecider()).on("INCORRECT").to(refundStep())
+                .from(deliveryDecider())
+                .on("NOT_PRESENT").to(leaveAtDoorStep()).build();
     }
 
     @Bean
@@ -72,6 +88,7 @@ public class LinkedinBatchApplication {
                 .start(selectFlowersStep())
                 .on("TRIM_REQUIRED").to(removeThornsStep()).next(arrangeFlowersStep())
                 .from(selectFlowersStep()).on("NO_TRIM_REQUIRED").to(arrangeFlowersStep())
+                .from(arrangeFlowersStep()).on("*").to(deliveryFlow())
                 .end()
                 .build();
     }
@@ -142,15 +159,7 @@ public class LinkedinBatchApplication {
     public Job deliverPackageJob() {
         return this.jobBuilderFactory.get("deliverPackageJob")
                 .start(packageItemStep())
-                .next(driveToAddressStep())
-                .on("FAILED").fail()
-                .from(driveToAddressStep())
-                .on("*").to(deliveryDecider())
-                .on("PRESENT").to(givePackageToCustomerStep())
-                .next(receiptDecider()).on("CORRECT").to(thankCustomerStep())
-                .from(receiptDecider()).on("INCORRECT").to(receiptDecider())
-                .from(deliveryDecider())
-                .on("NOT_PRESENT").to(leaveAtDoorStep())
+                .on("*").to(deliveryFlow())
                 .end()
                 .build();
     }
