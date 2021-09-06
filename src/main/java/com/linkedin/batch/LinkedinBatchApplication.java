@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
 @SpringBootApplication
 @EnableBatchProcessing
@@ -51,6 +52,11 @@ public class LinkedinBatchApplication {
             System.out.println("Invoice is sent to the customer");
             return RepeatStatus.FINISHED;
         }).build();
+    }
+
+    @Bean
+    public Flow billingFlow() {
+        return new FlowBuilder<SimpleFlow>("billingFlow").start(sendInvoiceStep()).build();
     }
 
     @Bean
@@ -177,8 +183,8 @@ public class LinkedinBatchApplication {
     public Job deliverPackageJob() {
         return this.jobBuilderFactory.get("deliverPackageJob")
                 .start(packageItemStep())
-                .on("*").to(deliveryFlow())
-                .next(nestedBillingJobStep())
+                .split(new SimpleAsyncTaskExecutor())
+                .add(deliveryFlow(), billingFlow())
                 .end()
                 .build();
     }
