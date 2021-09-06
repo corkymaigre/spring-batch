@@ -1,0 +1,5 @@
+CURRENT_DATE=`date '+%Y/%m/%d'`;
+# SECONDS=`date +%s`;
+/home/corky/.jdks/corretto-15.0.2/bin/java -Dmaven.multiModuleProjectDirectory=/home/corky/projects/linkedin-batch -Dmaven.home=/snap/intellij-idea-community/320/plugins/maven/lib/maven3 -Dclassworlds.conf=/snap/intellij-idea-community/320/plugins/maven/lib/maven3/bin/m2.conf -Dmaven.ext.class.path=/snap/intellij-idea-community/320/plugins/maven/lib/maven-event-listener.jar -javaagent:/snap/intellij-idea-community/320/lib/idea_rt.jar=34379:/snap/intellij-idea-community/320/bin -Dfile.encoding=UTF-8 -classpath /snap/intellij-idea-community/320/plugins/maven/lib/maven3/boot/plexus-classworlds-2.6.0.jar:/snap/intellij-idea-community/320/plugins/maven/lib/maven3/boot/plexus-classworlds.license org.codehaus.classworlds.Launcher -Didea.version=2021.2.1 clean package -Dmaven.test.skip=true;
+java -jar -Dspring.batch.job.names=job ./target/linkedin-batch-0.0.1-SNAPSHOT.jar "run.date(date)=$CURRENT_DATE";
+read;

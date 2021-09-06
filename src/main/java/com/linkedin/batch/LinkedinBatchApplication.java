@@ -10,12 +10,16 @@ import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.Flow;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+
+import java.util.List;
 
 @SpringBootApplication
 @EnableBatchProcessing
@@ -39,6 +43,27 @@ public class LinkedinBatchApplication {
     @Bean
     public JobExecutionDecider receiptDecider() {
         return new ReceiptDecider();
+    }
+
+    @Bean
+    public ItemReader<String> itemReader() {
+        return new SimpleItemReader();
+    }
+
+    @Bean
+    public Step chunkBasedStep() {
+        return this.stepBuilderFactory.get("chunkBasedStep")
+                .<String, String>chunk(3)
+                .reader(itemReader())
+                .writer(list -> {
+                    System.out.printf("Received list of size: %s%n", list.size());
+                    list.forEach(System.out::println);
+                }).build();
+    }
+
+    @Bean
+    public Job job() {
+        return this.jobBuilderFactory.get("job").start(chunkBasedStep()).build();
     }
 
     @Bean
