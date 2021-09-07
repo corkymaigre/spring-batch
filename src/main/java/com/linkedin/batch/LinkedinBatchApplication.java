@@ -11,8 +11,10 @@ import org.springframework.batch.core.job.flow.Flow;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.database.JdbcCursorItemReader;
+import org.springframework.batch.item.database.PagingQueryProvider;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
+import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
@@ -32,8 +34,7 @@ public class LinkedinBatchApplication {
 
     public static String[] tokens = new String[]{"order_id", "first_name", "last_name", "email", "cost", "item_id", "item_name", "ship_date"};
 
-    public static String ORDER_SQL = "select order_id, first_name, last_name, "
-            + "email, cost, item_id, item_name, ship_date "
+    public static String ORDER_SQL = "select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date "
             + "from SHIPPED_ORDER order by order_id";
 
     @Autowired
@@ -41,6 +42,8 @@ public class LinkedinBatchApplication {
 
     @Autowired
     public StepBuilderFactory stepBuilderFactory;
+    @Autowired
+    public DataSource dataSource;
 
     public static void main(String[] args) {
         SpringApplication.run(LinkedinBatchApplication.class, args);
@@ -74,11 +77,8 @@ public class LinkedinBatchApplication {
         return flatFileItemReader;
     }
 
-    @Autowired
-    public DataSource dataSource;
-
     @Bean
-    public ItemReader<Order> itemReader() {
+    public ItemReader<Order> jdbcCursorItemReaderBuilder() {
         return new JdbcCursorItemReaderBuilder<Order>()
                 .dataSource(dataSource)
                 .name("jdbcCursorItemReader")
@@ -88,10 +88,31 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
-    public Step chunkBasedStep() {
+    public PagingQueryProvider queryProvider() throws Exception {
+        SqlPagingQueryProviderFactoryBean factoryBean = new SqlPagingQueryProviderFactoryBean();
+        factoryBean.setSelectClause("select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date");
+        factoryBean.setFromClause("from SHIPPED_ORDER");
+        factoryBean.setSortKey("order_id");
+        factoryBean.setDataSource(dataSource);
+        return factoryBean.getObject();
+    }
+
+    @Bean
+    public ItemReader<Order> jdbcPagingItemReaderBuilder() throws Exception {
+        return new JdbcPagingItemReaderBuilder<Order>()
+                .dataSource(dataSource)
+                .name("jdbcCursorItemReader")
+                .queryProvider(queryProvider())
+                .rowMapper(new OrderRowMapper())
+                .pageSize(10)
+                .build();
+    }
+
+    @Bean
+    public Step chunkBasedStep() throws Exception {
         return this.stepBuilderFactory.get("chunkBasedStep")
-                .<Order, Order>chunk(3)
-                .reader(itemReader())
+                .<Order, Order>chunk(10)
+                .reader(jdbcPagingItemReaderBuilder())
                 .writer(list -> {
                     System.out.printf("Received list of size: %s%n", list.size());
                     list.forEach(System.out::println);
@@ -99,7 +120,7 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
-    public Job job() {
+    public Job job() throws Exception {
         return this.jobBuilderFactory.get("job").start(chunkBasedStep()).build();
     }
 
