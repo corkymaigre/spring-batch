@@ -11,6 +11,8 @@ import org.springframework.batch.core.job.flow.Flow;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.database.JdbcCursorItemReader;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
@@ -22,11 +24,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
+import javax.sql.DataSource;
+
 @SpringBootApplication
 @EnableBatchProcessing
 public class LinkedinBatchApplication {
 
     public static String[] tokens = new String[]{"order_id", "first_name", "last_name", "email", "cost", "item_id", "item_name", "ship_date"};
+
+    public static String ORDER_SQL = "select order_id, first_name, last_name, "
+            + "email, cost, item_id, item_name, ship_date "
+            + "from SHIPPED_ORDER order by order_id";
 
     @Autowired
     public JobBuilderFactory jobBuilderFactory;
@@ -49,10 +57,10 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
-    public ItemReader<Order> itemReader() {
-        FlatFileItemReader<Order> itemReader = new FlatFileItemReader<>();
-        itemReader.setLinesToSkip(1);
-        itemReader.setResource(new FileSystemResource("data/shipped_orders.csv"));
+    public FlatFileItemReader<Order> flatFileItemReader() {
+        FlatFileItemReader<Order> flatFileItemReader = new FlatFileItemReader<>();
+        flatFileItemReader.setLinesToSkip(1);
+        flatFileItemReader.setResource(new FileSystemResource("data/shipped_orders.csv"));
 
         DefaultLineMapper<Order> lineMapper = new DefaultLineMapper<>();
         DelimitedLineTokenizer tokenizer = new DelimitedLineTokenizer();
@@ -62,9 +70,21 @@ public class LinkedinBatchApplication {
 
         lineMapper.setFieldSetMapper(new OrderFieldSetMapper());
 
-        itemReader.setLineMapper(lineMapper);
-        return itemReader;
+        flatFileItemReader.setLineMapper(lineMapper);
+        return flatFileItemReader;
+    }
 
+    @Autowired
+    public DataSource dataSource;
+
+    @Bean
+    public ItemReader<Order> itemReader() {
+        return new JdbcCursorItemReaderBuilder<Order>()
+                .dataSource(dataSource)
+                .name("jdbcCursorItemReader")
+                .sql(ORDER_SQL)
+                .rowMapper(new OrderRowMapper())
+                .build();
     }
 
     @Bean
