@@ -11,12 +11,16 @@ import org.springframework.batch.core.job.flow.Flow;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.PagingQueryProvider;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
 import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
 import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
+import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
+import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +36,7 @@ import javax.sql.DataSource;
 @EnableBatchProcessing
 public class LinkedinBatchApplication {
 
+    public static String[] names = new String[]{"orderId", "firstName", "lastName", "email", "cost", "itemId", "itemName", "shipDate"};
     public static String[] tokens = new String[]{"order_id", "first_name", "last_name", "email", "cost", "item_id", "item_name", "ship_date"};
 
     public static String ORDER_SQL = "select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date "
@@ -47,6 +52,19 @@ public class LinkedinBatchApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(LinkedinBatchApplication.class, args);
+    }
+
+    @Bean
+    public ItemWriter<Order> flatFileItemWriter() {
+        FlatFileItemWriter<Order> flatFileItemWriter = new FlatFileItemWriter<>();
+        flatFileItemWriter.setResource(new FileSystemResource("data/shipped_orders_output.csv"));
+        DelimitedLineAggregator<Order> lineAggregator = new DelimitedLineAggregator<>();
+        lineAggregator.setDelimiter(",");
+        BeanWrapperFieldExtractor<Order> fieldExtractor = new BeanWrapperFieldExtractor<>();
+        fieldExtractor.setNames(names);
+        lineAggregator.setFieldExtractor(fieldExtractor);
+        flatFileItemWriter.setLineAggregator(lineAggregator);
+        return flatFileItemWriter;
     }
 
     @Bean
@@ -113,11 +131,9 @@ public class LinkedinBatchApplication {
         return this.stepBuilderFactory.get("chunkBasedStep")
                 .<Order, Order>chunk(10)
                 .reader(jdbcPagingItemReaderBuilder())
-                .writer(list -> {
-                    System.out.printf("Received list of size: %s%n", list.size());
-                    list.forEach(System.out::println);
-                }).build();
+                .writer(flatFileItemWriter()).build();
     }
+
 
     @Bean
     public Job job() throws Exception {
