@@ -23,6 +23,8 @@ import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
 import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.item.json.JacksonJsonObjectMarshaller;
+import org.springframework.batch.item.json.builder.JsonFileItemWriterBuilder;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -70,6 +72,15 @@ public class LinkedinBatchApplication {
         lineAggregator.setFieldExtractor(fieldExtractor);
         flatFileItemWriter.setLineAggregator(lineAggregator);
         return flatFileItemWriter;
+    }
+
+    @Bean
+    public ItemWriter<Order> jsonFileItemWriterBuilder() {
+        return new JsonFileItemWriterBuilder<Order>()
+                .jsonObjectMarshaller(new JacksonJsonObjectMarshaller<Order>())
+                .resource(new FileSystemResource("data/shipped_orders_output.json"))
+                .name("jsonItemWriter")
+                .build();
     }
 
     @Bean
@@ -145,7 +156,7 @@ public class LinkedinBatchApplication {
         return this.stepBuilderFactory.get("chunkBasedStep")
                 .<Order, Order>chunk(10)
                 .reader(jdbcPagingItemReaderBuilder())
-                .writer(jdbcBatchItemWriterBuilder()).build();
+                .writer(jsonFileItemWriterBuilder()).build();
     }
 
 
