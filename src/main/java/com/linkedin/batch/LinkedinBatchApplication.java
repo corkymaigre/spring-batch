@@ -13,6 +13,7 @@ import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.PagingQueryProvider;
+import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
 import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
@@ -39,8 +40,12 @@ public class LinkedinBatchApplication {
     public static String[] names = new String[]{"orderId", "firstName", "lastName", "email", "cost", "itemId", "itemName", "shipDate"};
     public static String[] tokens = new String[]{"order_id", "first_name", "last_name", "email", "cost", "item_id", "item_name", "ship_date"};
 
-    public static String ORDER_SQL = "select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date "
+    public static String SELECT_ORDER_SQL = "select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date "
             + "from SHIPPED_ORDER order by order_id";
+
+    public static String INSERT_ORDER_SQL = "insert into "
+            + "SHIPPED_ORDER_OUTPUT(order_id, first_name, last_name, email, cost, item_id, item_name, ship_date)"
+            + " values(?,?,?,?,?,?,?,?)";
 
     @Autowired
     public JobBuilderFactory jobBuilderFactory;
@@ -65,6 +70,15 @@ public class LinkedinBatchApplication {
         lineAggregator.setFieldExtractor(fieldExtractor);
         flatFileItemWriter.setLineAggregator(lineAggregator);
         return flatFileItemWriter;
+    }
+
+    @Bean
+    public ItemWriter<Order> jdbcBatchItemWriterBuilder() {
+        return new JdbcBatchItemWriterBuilder<Order>()
+                .dataSource(dataSource)
+                .sql(INSERT_ORDER_SQL)
+                .itemPreparedStatementSetter(new OrderItemPreparedStatementSetter())
+                .build();
     }
 
     @Bean
@@ -100,7 +114,7 @@ public class LinkedinBatchApplication {
         return new JdbcCursorItemReaderBuilder<Order>()
                 .dataSource(dataSource)
                 .name("jdbcCursorItemReader")
-                .sql(ORDER_SQL)
+                .sql(SELECT_ORDER_SQL)
                 .rowMapper(new OrderRowMapper())
                 .build();
     }
@@ -131,7 +145,7 @@ public class LinkedinBatchApplication {
         return this.stepBuilderFactory.get("chunkBasedStep")
                 .<Order, Order>chunk(10)
                 .reader(jdbcPagingItemReaderBuilder())
-                .writer(flatFileItemWriter()).build();
+                .writer(jdbcBatchItemWriterBuilder()).build();
     }
 
 
