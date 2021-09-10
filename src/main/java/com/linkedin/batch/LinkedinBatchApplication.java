@@ -77,9 +77,9 @@ public class LinkedinBatchApplication {
     }
 
     @Bean
-    public ItemWriter<Order> jsonFileItemWriterBuilder() {
-        return new JsonFileItemWriterBuilder<Order>()
-                .jsonObjectMarshaller(new JacksonJsonObjectMarshaller<Order>())
+    public ItemWriter<TrackedOrder> jsonFileItemWriterBuilder() {
+        return new JsonFileItemWriterBuilder<TrackedOrder>()
+                .jsonObjectMarshaller(new JacksonJsonObjectMarshaller<>())
                 .resource(new FileSystemResource("data/shipped_orders_output.json"))
                 .name("jsonItemWriter")
                 .build();
@@ -156,10 +156,16 @@ public class LinkedinBatchApplication {
     @Bean
     public Step chunkBasedStep() throws Exception {
         return this.stepBuilderFactory.get("chunkBasedStep")
-                .<Order, Order>chunk(10)
+                .<Order, TrackedOrder>chunk(10)
                 .reader(jdbcPagingItemReaderBuilder())
-                .processor(orderValidatingItemProcessor())
-                .writer(jsonFileItemWriterBuilder()).build();
+                .processor(trackedOrderItemProcessor())
+                .writer(jsonFileItemWriterBuilder())
+                .build();
+    }
+
+    @Bean
+    public ItemProcessor<Order, TrackedOrder> trackedOrderItemProcessor() {
+        return new TrackedOrderItemProcessor();
     }
 
     @Bean
