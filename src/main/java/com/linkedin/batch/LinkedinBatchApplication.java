@@ -26,6 +26,7 @@ import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.item.json.JacksonJsonObjectMarshaller;
 import org.springframework.batch.item.json.builder.JsonFileItemWriterBuilder;
+import org.springframework.batch.item.support.builder.CompositeItemProcessorBuilder;
 import org.springframework.batch.item.validator.BeanValidatingItemProcessor;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -158,8 +159,15 @@ public class LinkedinBatchApplication {
         return this.stepBuilderFactory.get("chunkBasedStep")
                 .<Order, TrackedOrder>chunk(10)
                 .reader(jdbcPagingItemReaderBuilder())
-                .processor(trackedOrderItemProcessor())
+                .processor(compositeItemProcessor())
                 .writer(jsonFileItemWriterBuilder())
+                .build();
+    }
+
+    @Bean
+    public ItemProcessor<Order, TrackedOrder> compositeItemProcessor() {
+        return new CompositeItemProcessorBuilder<Order, TrackedOrder>()
+                .delegates(orderValidatingItemProcessor(), trackedOrderItemProcessor())
                 .build();
     }
 
