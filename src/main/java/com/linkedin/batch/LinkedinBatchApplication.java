@@ -161,9 +161,12 @@ public class LinkedinBatchApplication {
                 .reader(jdbcPagingItemReaderBuilder())
                 .processor(compositeItemProcessor())
                 .faultTolerant()
-                .skip(OrderProcessingException.class)
-                .skipLimit(5)
-                .listener(new CustomSkipListener())
+//                .skip(OrderProcessingException.class)
+//                .skipLimit(5)
+                .retry(OrderProcessingException.class)
+                .retryLimit(3)
+//                .listener(new CustomSkipListener())
+                .listener(new CustomRetryListener())
                 .writer(jsonFileItemWriterBuilder())
                 .build();
     }

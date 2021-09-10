@@ -15,7 +15,7 @@ public class TrackedOrderItemProcessor implements ItemProcessor<Order, TrackedOr
     }
 
     private String getTrackingNumber() throws OrderProcessingException {
-        if (Math.random() < .30) {
+        if (Math.random() < .03) {
             throw new OrderProcessingException();
         }
         return UUID.randomUUID().toString();
