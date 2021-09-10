@@ -35,6 +35,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import javax.sql.DataSource;
 
@@ -49,8 +51,8 @@ public class LinkedinBatchApplication {
             + "from SHIPPED_ORDER order by order_id";
 
     public static String INSERT_ORDER_SQL = "insert into "
-            + "SHIPPED_ORDER_OUTPUT(order_id, first_name, last_name, email, cost, item_id, item_name, ship_date)"
-            + " values(:orderId,:firstName,:lastName,:email,:itemId,:itemName,:cost,:shipDate)";
+            + "TRACKED_ORDER(order_id, first_name, last_name, email, cost, item_id, item_name, ship_date, tracking_number, free_shipping)"
+            + " values(:orderId,:firstName,:lastName,:email,:itemId,:itemName,:cost,:shipDate, :trackingNumber, :freeShipping)";
 
     @Autowired
     public JobBuilderFactory jobBuilderFactory;
@@ -151,7 +153,16 @@ public class LinkedinBatchApplication {
                 .queryProvider(queryProvider())
                 .rowMapper(new OrderRowMapper())
                 .pageSize(10)
+                .saveState(false)
                 .build();
+    }
+
+    @Bean
+    public TaskExecutor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(10);
+        return executor;
     }
 
     @Bean
@@ -168,6 +179,7 @@ public class LinkedinBatchApplication {
 //                .listener(new CustomSkipListener())
                 .listener(new CustomRetryListener())
                 .writer(jsonFileItemWriterBuilder())
+                .taskExecutor(taskExecutor())
                 .build();
     }
 
