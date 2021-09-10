@@ -167,7 +167,7 @@ public class LinkedinBatchApplication {
     @Bean
     public ItemProcessor<Order, TrackedOrder> compositeItemProcessor() {
         return new CompositeItemProcessorBuilder<Order, TrackedOrder>()
-                .delegates(orderValidatingItemProcessor(), trackedOrderItemProcessor())
+                .delegates(orderValidatingItemProcessor(), trackedOrderItemProcessor(), freeShippingItemProcessor())
                 .build();
     }
 
@@ -181,6 +181,11 @@ public class LinkedinBatchApplication {
         BeanValidatingItemProcessor<Order> itemProcessor = new BeanValidatingItemProcessor<>();
         itemProcessor.setFilter(true);
         return itemProcessor;
+    }
+
+    @Bean
+    public ItemProcessor<TrackedOrder, TrackedOrder> freeShippingItemProcessor() {
+        return new FreeShippingItemProcessor();
     }
 
 
